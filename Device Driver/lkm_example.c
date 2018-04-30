@@ -21,8 +21,10 @@ static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
 
 static int major_num;
 static int device_open_count = 0;
-static char msg_buffer[MSG_BUFFER_LEN];
+static int size = 0;
+static char msg_buffer[256];
 static char *msg_ptr;
+static char key[16];
 
 /* This structure points to all of the device functions */
 static struct file_operations file_ops = {
@@ -35,15 +37,14 @@ static struct file_operations file_ops = {
 /* When a process reads from our device, this gets called. */
 static ssize_t device_read(struct file *flip, char *buffer, size_t len, loff_t *offset) {
  int bytes_read = 0;
+ char *temp = msg_buffer; 
  /* If we’re at the end, loop back to the beginning */
- if (*msg_ptr == 0) {
- msg_ptr = msg_buffer;
- }
  /* Put data in the buffer */
- while (len && *msg_ptr) {
+ while (len && *temp) {
  /* Buffer is in user data, not kernel, so you can’t just reference
  * with a pointer. The function put_user handles this for us */
- put_user(*(msg_ptr++), buffer++);
+ put_user(*temp, buffer++);
+ temp++;
  len--;
  bytes_read++;
  }
@@ -53,7 +54,26 @@ static ssize_t device_read(struct file *flip, char *buffer, size_t len, loff_t *
 /* Called when a process tries to write to our device */
 static ssize_t device_write(struct file *flip, const char *buffer, size_t len, loff_t *offset) {
  /* This is a read-only device */
- 
+ 	int i;
+	for(i=0;i<16;i++)
+	{
+		key[i] = *buffer;
+		buffer++;
+	}
+	for(i=0;i<16 && *buffer;i++)
+	{
+		msg_buffer[i] = *buffer ^ key[i];
+		printk("-100 %s",msg_buffer[i]);
+		buffer++;
+		size++;
+	}
+	while(*buffer)
+	{
+		msg_buffer[size] = *buffer ^ msg_buffer[size-16];
+		printk("-101 %s",msg_buffer[size]);
+		size++;
+		buffer++;
+	}
 }
 
 /* Called when a process opens our device */
@@ -77,9 +97,9 @@ static int device_release(struct inode *inode, struct file *file) {
 
 static int __init lkm_example_init(void) {
  /* Fill buffer with our message */
- strncpy(msg_buffer, EXAMPLE_MSG, MSG_BUFFER_LEN);
+ //strncpy(msg_buffer, EXAMPLE_MSG, MSG_BUFFER_LEN);
  /* Set the msg_ptr to the buffer */
- msg_ptr = msg_buffer;
+ //msg_ptr = msg_buffer;
  /* Try to register character device */
  major_num = register_chrdev(0, "lkm_example", &file_ops);
  if (major_num < 0) {
