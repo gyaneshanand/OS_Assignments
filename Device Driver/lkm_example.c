@@ -1,3 +1,4 @@
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -5,7 +6,7 @@
 #include <asm/uaccess.h>
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Robert W. Oliver II");
+MODULE_AUTHOR("gaandu madarchod");
 MODULE_DESCRIPTION("A simple example Linux module.");
 MODULE_VERSION("0.01");
 
@@ -24,7 +25,11 @@ static int device_open_count = 0;
 static int size = 0;
 static char msg_buffer[256];
 static char *msg_ptr;
-static char key[16];
+static char key[106];
+static char data[106];
+static char enc_data[106];
+static char dec_data[106];
+
 
 /* This structure points to all of the device functions */
 static struct file_operations file_ops = {
@@ -37,17 +42,19 @@ static struct file_operations file_ops = {
 /* When a process reads from our device, this gets called. */
 static ssize_t device_read(struct file *flip, char *buffer, size_t len, loff_t *offset) {
  int bytes_read = 0;
- char *temp = msg_buffer; 
- /* If we’re at the end, loop back to the beginning */
- /* Put data in the buffer */
+ //char str[20] = "madarchod";
+ char *temp = enc_data; 
+
  while (len && *temp) {
- /* Buffer is in user data, not kernel, so you can’t just reference
- * with a pointer. The function put_user handles this for us */
+
  put_user(*temp, buffer++);
  temp++;
  len--;
  bytes_read++;
  }
+
+ 
+
  return bytes_read;
 }
 
@@ -55,33 +62,67 @@ static ssize_t device_read(struct file *flip, char *buffer, size_t len, loff_t *
 static ssize_t device_write(struct file *flip, const char *buffer, size_t len, loff_t *offset) {
  /* This is a read-only device */
  	int i;
+ 	
+ 	printk(KERN_INFO "write mei aaya");
+ 	copy_from_user(msg_buffer, buffer, len);
+
+
+
 	for(i=0;i<16;i++)
 	{
-		key[i] = *buffer;
-		buffer++;
+		key[i] = msg_buffer[i];
+		/*msg_buffer[i] = *buffer;
+		buffer++;*/
 	}
-	for(i=0;i<16 && *buffer;i++)
+	int j =0;
+	for(i=16;i<len;i++)
+	{
+		data[j] = msg_buffer[i];
+		j++;
+		/*msg_buffer[i] = *buffer;
+		buffer++;*/
+	}
+	for(i=0;i<(len-16);i++)
+	{
+		enc_data[i] = (char)(data[i] ^ key[i]);
+		printk("%02X \n", enc_data[i]);
+		/*msg_buffer[i] = *buffer;
+		buffer++;*/
+	}
+	for(i=0;i<(len-16);i++)
+	{
+		dec_data[i] = (char)(enc_data[i] ^ key[i]);
+		
+		/*msg_buffer[i] = *buffer;
+		buffer++;*/
+	}
+	printk("%s \n", dec_data);
+
+	/*for(i=0;i<16 && *buffer;i++)
 	{
 		msg_buffer[i] = *buffer ^ key[i];
 		printk("-100 %s",msg_buffer[i]);
 		buffer++;
 		size++;
 	}
+		
 	while(*buffer)
 	{
 		msg_buffer[size] = *buffer ^ msg_buffer[size-16];
 		printk("-101 %s",msg_buffer[size]);
 		size++;
 		buffer++;
-	}
+	}*/
+	return i;
+
 }
 
 /* Called when a process opens our device */
 static int device_open(struct inode *inode, struct file *file) {
  /* If device is open, return busy */
- if (device_open_count) {
+/* if (device_open_count) {
  return -EBUSY;
- }
+ }*/
  device_open_count++;
  try_module_get(THIS_MODULE);
  return 0;
